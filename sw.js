@@ -6,7 +6,7 @@
 */
 var cacheAll = true;
 var CACHE_NAME = 'webapk-cache';
-// var urlsToCache = [
+var urlsToCache = [
 	// './index.html',
 // 	'./mainSW.js',
 // 	'./jquery.min.js',
@@ -36,7 +36,7 @@ var CACHE_NAME = 'webapk-cache';
 // 	'./hash.js',
 // 	'./api.js',
 // 	'./sw.js',
-// ];
+];
 
 var urlsNotToCache = [
 	// Urls that don't need to be cached can be added here explicitly

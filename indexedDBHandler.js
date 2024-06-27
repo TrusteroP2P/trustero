@@ -19,6 +19,7 @@ class IndexedDBHandler {
                 if (!this.db.objectStoreNames.contains('messages')) {
                     let messageStore = this.db.createObjectStore('messages', { keyPath: 'id', autoIncrement: true });
                     messageStore.createIndex('room', 'room', { unique: false });
+                    messageStore.createIndex('hashIndex', 'hash', { unique: true });
                 }
             };
 
@@ -67,13 +68,18 @@ class IndexedDBHandler {
     }
 
     async storeMessage(room, message) {
-        let transaction = this.db.transaction(['messages'], 'readwrite');
-        let objectStore = transaction.objectStore('messages');
-        objectStore.add({ room: room, message: message });
-        if (!this.loadedMessages[room]) {
-            this.loadedMessages[room] = [];
+        const messageHash = message.hash;
+
+        const messageExists = await this.messageExists(messageHash);
+        if (!messageExists) {
+            let transaction = this.db.transaction(['messages'], 'readwrite');
+            let objectStore = transaction.objectStore('messages');
+            objectStore.add({ room: room, message: message.message, timestamp: message.timestamp, hash: messageHash, peerInfo: message.peerInfo, sent: message.sent });
+            if (!this.loadedMessages[room]) {
+                this.loadedMessages[room] = [];
+            }
+            this.loadedMessages[room].push(message);
         }
-        this.loadedMessages[room].push(message);
     }
 
     async getMessages(room) {
@@ -97,6 +103,7 @@ class IndexedDBHandler {
             }
         });
     }
+
     async getMessagesBatch(room, start, batchSize) {
         return new Promise((resolve, reject) => {
             let transaction = this.db.transaction(['messages'], 'readonly');
@@ -112,13 +119,32 @@ class IndexedDBHandler {
                 let cursor = event.target.result;
                 if (cursor && count < start + batchSize) {
                     if (count >= start) {
-                        messages.push(cursor.value.message);
+                        messages.push(cursor.value);
                     }
                     count++;
                     cursor.continue();
                 } else {
-                    resolve(messages);
+                    // Reverse the messages to maintain chronological order
+                    resolve(messages.reverse());
                 }
+            };
+
+            request.onerror = (event) => {
+                reject(event.target.error);
+            };
+        });
+    }
+
+    async messageExists(hash) {
+        return new Promise((resolve, reject) => {
+            console.log("hash indexdb",hash)
+            let transaction = this.db.transaction(['messages'], 'readonly');
+            let objectStore = transaction.objectStore('messages');
+            let index = objectStore.index('hashIndex');
+            let request = index.get(hash);
+
+            request.onsuccess = (event) => {
+                resolve(!!event.target.result);
             };
 
             request.onerror = (event) => {
